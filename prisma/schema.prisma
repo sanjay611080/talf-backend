@@ -1,0 +1,61 @@
+// Prisma schema for the Talf Solar MIS backend (Supabase / PostgreSQL).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  username     String  @id
+  role         String
+  fullName     String?
+  email        String?
+  contact      String?
+  isActive     Boolean @default(true)
+  passwordHash String
+}
+
+model Project {
+  projectCode         String @id
+  projectState        String
+  projectName         String
+  projectOwner        String
+  dateOfCommissioning String
+  tariff              Float
+  plantId             String?
+  // Solis-authoritative lifetime generation (station.allEnergy). Used for the
+  // "ALL" timeline view so the dashboard matches what SolisCloud itself shows,
+  // even when our per-month aggregation is missing replaced inverters or
+  // pre-registration data. Refreshed on every sync.
+  lifetimeKWh         Float?
+  // Nested collections kept as JSONB — fetched/saved per project as a unit.
+  inverters           Json
+  monthlyData         Json
+  breakdownEvents     Json
+}
+
+model ModuleBuild {
+  id          String @id
+  name        String
+  wp          Float
+  area        Float
+  degradation Json
+}
+
+model SolisCredentials {
+  id        Int    @id @default(1)
+  apiId     String
+  apiSecret String
+  baseUrl   String
+}
+
+// Small key/value table for backend metadata (e.g. last SolisCloud sync time).
+model AppMeta {
+  key   String @id
+  value String
+}

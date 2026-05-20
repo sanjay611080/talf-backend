@@ -1,0 +1,33 @@
+{
+  "name": "talf-solar-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend API for the Talf Solar MIS frontend",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "prisma generate && tsc",
+    "start": "node dist/index.js",
+    "postinstall": "prisma generate",
+    "db:push": "prisma db push",
+    "db:import": "tsx scripts/import-db-json.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "prisma": "^6.19.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.14.0",
+    "tsx": "^4.19.2",
+    "typescript": "~5.8.2"
+  }
+}
