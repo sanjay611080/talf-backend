@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: talf-solar-backend
+    runtime: node
+    # Install deps, regenerate the Prisma client, compile TypeScript, then push
+    # any pending schema changes (e.g. new tables) to Supabase automatically on
+    # every deploy. Requires DIRECT_URL (non-pooled Supabase URL) in env vars.
+    buildCommand: npm ci && npm run build && npx prisma db push --accept-data-loss
+    startCommand: node dist/index.js
+    # Render injects PORT automatically — config.ts already reads it.
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Supabase pooled connection URL (for the app at runtime via pgbouncer).
+      - key: DATABASE_URL
+        sync: false
+      # Supabase direct (non-pooled) URL — required for prisma db push / migrations.
+      - key: DIRECT_URL
+        sync: false
+      # Long random string used to sign JWTs. Generate with: openssl rand -base64 48
+      - key: JWT_SECRET
+        sync: false
+      # Optional overrides — leave unset to use the defaults from config.ts.
+      # - key: SOLIS_AUTO_SYNC
+      #   value: "true"
+      # - key: SOLIS_SYNC_TTL_HOURS
+      #   value: "6"
+      # - key: SOLIS_CRON_INTERVAL_MINUTES
+      #   value: "10"
