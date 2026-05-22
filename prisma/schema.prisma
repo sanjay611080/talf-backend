@@ -59,3 +59,24 @@ model AppMeta {
   key   String @id
   value String
 }
+
+// Persistent audit trail — every action logged by the frontend or backend is
+// written here directly via Prisma (not through the in-memory store) so logs
+// survive restarts and are never lost.
+model AuditLog {
+  id          String   @id @default(cuid())
+  timestamp   DateTime @default(now())
+  performedBy String
+  action      String
+  entityType  String
+  entityId    String?
+  entityLabel String?
+  description String
+  changes     Json?
+  metadata    Json?
+
+  @@index([timestamp(sort: Desc)])
+  @@index([performedBy])
+  @@index([entityType])
+  @@index([action])
+}

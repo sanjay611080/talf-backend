@@ -2,6 +2,7 @@ import cors from 'cors';
 import express, { NextFunction, Request, Response } from 'express';
 import { PORT, SOLIS_AUTO_SYNC, SOLIS_CRON_INTERVAL_MINUTES, SOLIS_SYNC_TTL_HOURS } from './config';
 import { getDb, initStore } from './db/store';
+import auditRoutes from './routes/audit';
 import authRoutes from './routes/auth';
 import kpiRoutes from './routes/kpis';
 import moduleBuildRoutes from './routes/moduleBuilds';
@@ -21,6 +22,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/audit', auditRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/module-builds', moduleBuildRoutes);

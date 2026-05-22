@@ -1,6 +1,7 @@
 import { getDb, saveDb, saveProjectMonthlyData } from '../db/store';
 import { Inverter, MonthlyData, ModuleBuild, Project, SolisStation, SolisInverterSummary, SolisSyncStatus } from '../types';
 import { getActiveCredentials, getInverterMonth, getInverterYear, listInverters, listStations } from './solisService';
+import { logAuditEvent } from './auditHelper';
 
 /**
  * Fetches the SolisCloud account and mirrors it into the local database:
@@ -294,6 +295,7 @@ export async function runFullSync(): Promise<void> {
     getDb().solisSyncedAt = Date.now();
     await saveDb();
 
+    const durationSec = Math.round((Date.now() - (status.startedAt || Date.now())) / 1000);
     status = {
       state: 'done',
       message: `Synced ${syncedCount} station(s) from SolisCloud.`,
@@ -302,15 +304,32 @@ export async function runFullSync(): Promise<void> {
       startedAt: status.startedAt,
       finishedAt: Date.now(),
     };
+    logAuditEvent({
+      performedBy: 'system',
+      action: 'sync',
+      entityType: 'sync',
+      entityId: 'solis-full',
+      description: `Full SolisCloud sync completed — ${syncedCount} station(s) in ${durationSec}s`,
+      metadata: { kind: 'full', stationCount: syncedCount, durationSec },
+    });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : 'SolisCloud sync failed.';
     status = {
       state: 'error',
-      message: err instanceof Error ? err.message : 'SolisCloud sync failed.',
+      message: msg,
       totalSteps: status.totalSteps,
       doneSteps: status.doneSteps,
       startedAt: status.startedAt,
       finishedAt: Date.now(),
     };
+    logAuditEvent({
+      performedBy: 'system',
+      action: 'sync',
+      entityType: 'sync',
+      entityId: 'solis-full',
+      description: `Full SolisCloud sync failed: ${msg}`,
+      metadata: { kind: 'full', error: msg },
+    });
   } finally {
     running = false;
   }
@@ -665,10 +684,19 @@ export async function runCronSync(): Promise<void> {
       finishedAt: Date.now(),
       kind: 'cron',
     };
+    logAuditEvent({
+      performedBy: 'system',
+      action: 'sync',
+      entityType: 'sync',
+      entityId: 'solis-cron',
+      description: `Auto-sync (cron) refreshed ${month} for ${projects.length} project(s)`,
+      metadata: { kind: 'cron', month, projectCount: projects.length },
+    });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Cron sync failed.';
     status = {
       state: 'error',
-      message: err instanceof Error ? err.message : 'Cron sync failed.',
+      message: msg,
       totalSteps: status.totalSteps,
       doneSteps: status.doneSteps,
       startedAt: status.startedAt,
