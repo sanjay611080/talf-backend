@@ -10,15 +10,10 @@ export interface AuditPayload {
   description: string;
   changes?: unknown;
   metadata?: unknown;
-  /** Optional ISO-8601 string — defaults to now(). Useful when replaying events. */
-  timestamp?: string;
+  timestamp?: string; // ISO-8601, defaults to now()
 }
 
-/**
- * Writes an audit event directly to the database.
- * Fire-and-forget: errors are logged to console but never rethrown, so callers
- * are never blocked or crashed by a logging failure.
- */
+// Fire-and-forget: errors are logged but never rethrown.
 export function logAuditEvent(payload: AuditPayload): void {
   const data: Prisma.AuditLogCreateInput = {
     performedBy: payload.performedBy,

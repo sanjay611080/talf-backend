@@ -6,15 +6,12 @@ import { Project } from '../types';
 
 const router = Router();
 
-// Every project endpoint requires a logged-in user.
 router.use(authenticate);
 
-// GET /api/projects
 router.get('/', (_req, res) => {
   res.json(getDb().projects);
 });
 
-// GET /api/projects/:code
 router.get('/:code', (req, res) => {
   const project = getDb().projects.find((p) => p.projectCode === req.params.code);
   if (!project) {
@@ -24,7 +21,6 @@ router.get('/:code', (req, res) => {
   res.json(project);
 });
 
-// PUT /api/projects  — bulk replace the whole collection (used by the frontend).
 router.put(
   '/',
   requireRole('admin', 'operations'),
@@ -39,7 +35,6 @@ router.put(
   }),
 );
 
-// POST /api/projects  — create a single project.
 router.post(
   '/',
   requireRole('admin'),
@@ -59,7 +54,6 @@ router.post(
   }),
 );
 
-// PUT /api/projects/:code  — update a single project.
 router.put(
   '/:code',
   requireRole('admin', 'operations'),
@@ -76,7 +70,6 @@ router.put(
   }),
 );
 
-// DELETE /api/projects/:code
 router.delete(
   '/:code',
   requireRole('admin'),

@@ -9,12 +9,10 @@ const router = Router();
 
 router.use(authenticate);
 
-// GET /api/module-builds
 router.get('/', (_req, res) => {
   res.json(getDb().moduleBuilds);
 });
 
-// POST /api/module-builds
 router.post(
   '/',
   requireRole('admin', 'operations'),
@@ -40,7 +38,6 @@ router.post(
   }),
 );
 
-// PUT /api/module-builds/:id
 router.put(
   '/:id',
   requireRole('admin', 'operations'),
@@ -57,7 +54,6 @@ router.put(
   }),
 );
 
-// DELETE /api/module-builds/:id
 router.delete(
   '/:id',
   requireRole('admin', 'operations'),

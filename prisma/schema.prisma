@@ -1,5 +1,3 @@
-// Prisma schema for the Talf Solar MIS backend (Supabase / PostgreSQL).
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -21,19 +19,15 @@ model User {
 }
 
 model Project {
-  projectCode         String @id
+  projectCode         String  @id
   projectState        String
   projectName         String
   projectOwner        String
   dateOfCommissioning String
   tariff              Float
   plantId             String?
-  // Solis-authoritative lifetime generation (station.allEnergy). Used for the
-  // "ALL" timeline view so the dashboard matches what SolisCloud itself shows,
-  // even when our per-month aggregation is missing replaced inverters or
-  // pre-registration data. Refreshed on every sync.
+  // Solis lifetime roll-up (station.allEnergy) — includes replaced inverters and pre-registration history.
   lifetimeKWh         Float?
-  // Nested collections kept as JSONB — fetched/saved per project as a unit.
   inverters           Json
   monthlyData         Json
   breakdownEvents     Json
@@ -54,15 +48,12 @@ model SolisCredentials {
   baseUrl   String
 }
 
-// Small key/value table for backend metadata (e.g. last SolisCloud sync time).
 model AppMeta {
   key   String @id
   value String
 }
 
-// Persistent audit trail — every action logged by the frontend or backend is
-// written here directly via Prisma (not through the in-memory store) so logs
-// survive restarts and are never lost.
+// Persistent audit trail — written directly via Prisma, not through the in-memory store.
 model AuditLog {
   id          String   @id @default(cuid())
   timestamp   DateTime @default(now())

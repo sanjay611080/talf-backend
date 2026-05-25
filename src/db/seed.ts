@@ -2,11 +2,7 @@ import bcrypt from 'bcryptjs';
 import { SOLIS_API_ID, SOLIS_API_SECRET } from '../config';
 import { Database, ModuleBuild, MonthlyData, Project, BreakdownReason, StoredUser } from '../types';
 
-/**
- * Builds the initial database. Called once, the first time the server starts
- * with no data/db.json present. Mirrors the dummy data the frontend prototype
- * used to generate in localStorage so the dashboard looks identical.
- */
+// Builds initial seed data on first run with an empty database.
 export function seedDatabase(): Database {
   const moduleBuilds: ModuleBuild[] = [
     {
@@ -33,8 +29,6 @@ export function seedDatabase(): Database {
     { username: 'viewer', role: 'viewer', fullName: 'Viewer User', email: 'viewer@talfsolar.in', contact: '+91 90000 00003', isActive: true, passwordHash },
   ];
 
-  // Skip the demo projects when SolisCloud credentials are configured — the
-  // sync will populate real projects instead.
   const solisConfigured = !!(SOLIS_API_ID && SOLIS_API_SECRET);
   const projects = solisConfigured ? [] : buildProjects(defaultBuildId);
 

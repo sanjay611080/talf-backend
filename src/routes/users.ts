@@ -11,7 +11,6 @@ router.use(authenticate);
 
 const ROLES: UserRole[] = ['admin', 'operations', 'viewer'];
 
-/** Strips the password hash — the public user shape sent to the frontend. */
 function toPublicUser(user: StoredUser): User {
   return {
     username: user.username,
@@ -26,12 +25,10 @@ function toPublicUser(user: StoredUser): User {
 const normalize = (value: unknown): string => String(value ?? '').trim();
 const toLower = (value: unknown): string => normalize(value).toLowerCase();
 
-// GET /api/users
 router.get('/', requireRole('admin'), (_req, res) => {
   res.json(getDb().users.map(toPublicUser));
 });
 
-// POST /api/users  — username, email and contact must each be unique.
 router.post(
   '/',
   requireRole('admin'),
@@ -84,7 +81,6 @@ router.post(
   }),
 );
 
-// PUT /api/users/:username  — username is the immutable key.
 router.put(
   '/:username',
   requireRole('admin'),
@@ -132,7 +128,6 @@ router.put(
   }),
 );
 
-// PATCH /api/users/:username/active  — activate / deactivate.
 router.patch(
   '/:username/active',
   requireRole('admin'),
@@ -152,7 +147,6 @@ router.patch(
   }),
 );
 
-// DELETE /api/users/:username
 router.delete(
   '/:username',
   requireRole('admin'),

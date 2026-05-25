@@ -7,7 +7,6 @@ export interface AuthRequest extends Request {
   user?: User;
 }
 
-/** Rejects the request unless it carries a valid Bearer JWT. */
 export function authenticate(req: AuthRequest, res: Response, next: NextFunction): void {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) {
@@ -23,7 +22,6 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
   }
 }
 
-/** Must run after authenticate. Rejects users whose role is not allowed. */
 export function requireRole(...roles: UserRole[]) {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (!req.user || !roles.includes(req.user.role)) {

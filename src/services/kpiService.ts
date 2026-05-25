@@ -25,6 +25,8 @@ export function filterMonthlyData(monthlyData: Record<string, MonthlyData>, rang
   return sorted;
 }
 
+// Returns actual operational hours/days for a calendar month.
+// Clamps start to commissioning date and end to today for partial months.
 export function operationalSpanInMonth(
   monthKey: string,
   commissioningDate: Date,
@@ -32,24 +34,20 @@ export function operationalSpanInMonth(
 ): { hours: number; days: number } {
   const [yearStr, monthStr] = monthKey.split('-');
   const year = parseInt(yearStr, 10);
-  const monthIdx = parseInt(monthStr, 10) - 1; 
+  const monthIdx = parseInt(monthStr, 10) - 1;
 
   const monthStartMs = new Date(year, monthIdx, 1).getTime();
   const monthEndMs = new Date(year, monthIdx + 1, 1).getTime();
   const commissioningMs = commissioningDate.getTime();
   const nowMs = now.getTime();
 
-  const opStart =
-    commissioningMs > monthStartMs && commissioningMs < monthEndMs ? commissioningMs : monthStartMs;
+  const opStart = commissioningMs > monthStartMs && commissioningMs < monthEndMs ? commissioningMs : monthStartMs;
   const opEnd = nowMs > monthStartMs && nowMs < monthEndMs ? nowMs : monthEndMs;
 
   if (opEnd <= opStart) return { hours: 0, days: 0 };
 
   const ms = opEnd - opStart;
-  return {
-    hours: ms / 3_600_000,
-    days: ms / 86_400_000,
-  };
+  return { hours: ms / 3_600_000, days: ms / 86_400_000 };
 }
 
 export function calculateKPIs(project: Project, timeRange: TimeRange, moduleBuilds: ModuleBuild[]): KPIResult {
@@ -61,7 +59,6 @@ export function calculateKPIs(project: Project, timeRange: TimeRange, moduleBuil
   let totalTargetP50 = 0;
   let totalTargetOM = 0;
   let totalDays = 0;
-
   let prDenominator = 0;
   let dcCufDenominator = 0;
   let acCufDenominator = 0;
@@ -71,7 +68,6 @@ export function calculateKPIs(project: Project, timeRange: TimeRange, moduleBuil
   const now = new Date();
 
   months.forEach((m) => {
-
     const { hours, days } = operationalSpanInMonth(m.month, commissioningDate, now);
     totalDays += days;
 
@@ -94,24 +90,22 @@ export function calculateKPIs(project: Project, timeRange: TimeRange, moduleBuil
       const irradiation = (m.inverterIrradiation || [])[index] || 0;
 
       if (build && inv.moduleCount && irradiation > 0) {
-        const firstYearDegradationPerMonth = build.degradation.firstYear / 12;
-        const subsequentYearDegradationPerMonth = build.degradation.subsequentYears / 12;
-        let totalDegradationPercent = 0;
+        const firstYearDegPerMonth = build.degradation.firstYear / 12;
+        const subYearDegPerMonth = build.degradation.subsequentYears / 12;
+        let totalDegPercent = 0;
 
         if (monthsDiff >= 0) {
           if (monthsDiff < 12) {
-            totalDegradationPercent = (monthsDiff + 1) * firstYearDegradationPerMonth;
+            totalDegPercent = (monthsDiff + 1) * firstYearDegPerMonth;
           } else {
-            totalDegradationPercent =
-              build.degradation.firstYear + (monthsDiff - 11) * subsequentYearDegradationPerMonth;
+            totalDegPercent = build.degradation.firstYear + (monthsDiff - 11) * subYearDegPerMonth;
           }
         }
 
-        const degradationFactor = 1 - totalDegradationPercent / 100;
-      
+        const degradationFactor = 1 - totalDegPercent / 100;
+        // IEC 61724 PR denominator: H_POA × P_DC × (1 − degradation), P_DC = moduleCount × Wp / 1000
         const dcCapacityKW = (inv.moduleCount * build.wp) / 1000;
-        const degradedDcCapacityKW = dcCapacityKW * degradationFactor;
-        return sum + irradiation * degradedDcCapacityKW;
+        return sum + irradiation * dcCapacityKW * degradationFactor;
       }
       return sum;
     }, 0);
@@ -125,7 +119,7 @@ export function calculateKPIs(project: Project, timeRange: TimeRange, moduleBuil
   const tariff = project.tariff || 0;
   const revenue = netEnergy * tariff;
   const targetRevenue = totalTargetOM * tariff;
-  const co2Reduction = (netEnergy / 1000) * CO2_FACTOR;
+  const co2Reduction = (netEnergy / 1000) * CO2_FACTOR; // tCO2 = kWh / 1000 × emission factor
 
   let latestTotalKWdc = 0;
   if (months.length > 0) {
@@ -133,11 +127,11 @@ export function calculateKPIs(project: Project, timeRange: TimeRange, moduleBuil
     latestTotalKWdc = (lastMonth.inverterDcCapacityKW || []).reduce((sum, dc) => sum + dc, 0);
   }
 
-  const yieldVal = latestTotalKWdc > 0 ? netEnergy / latestTotalKWdc : 0;
-  const averageDailyYield = latestTotalKWdc > 0 && totalDays > 0 ? netEnergy / latestTotalKWdc / totalDays : 0;
-  const pr = prDenominator > 0 ? (netEnergy / prDenominator) * 100 : 0;
-  const cuf = acCufDenominator > 0 ? (netEnergy / acCufDenominator) * 100 : 0;
-  const dcCuf = dcCufDenominator > 0 ? (netEnergy / dcCufDenominator) * 100 : 0;
+  const yieldVal = latestTotalKWdc > 0 ? netEnergy / latestTotalKWdc : 0;                                        // kWh/kWp
+  const averageDailyYield = latestTotalKWdc > 0 && totalDays > 0 ? netEnergy / latestTotalKWdc / totalDays : 0;  // kWh/kWp/day
+  const pr    = prDenominator > 0    ? (netEnergy / prDenominator) * 100    : 0; // IEC 61724 PR %
+  const cuf   = acCufDenominator > 0 ? (netEnergy / acCufDenominator) * 100 : 0; // AC CUF %
+  const dcCuf = dcCufDenominator > 0 ? (netEnergy / dcCufDenominator) * 100 : 0; // DC CUF %
 
   return {
     totalCapacityKWac: totalKWac,
@@ -173,7 +167,6 @@ export function calculateInverterKPIs(
   let totalTargetOM = 0;
   let totalTheoreticalEnergy = 0;
   let totalDays = 0;
-
   let prDenominator = 0;
   let dcCufDenominator = 0;
   let acCufDenominator = 0;
@@ -183,17 +176,17 @@ export function calculateInverterKPIs(
   const now = new Date();
 
   months.forEach((m) => {
-   
     const { hours, days } = operationalSpanInMonth(m.month, commissioningDate, now);
     totalDays += days;
 
-    const monthlyDcKW = (m.inverterDcCapacityKW || [])[inverterIndex] || 0;
-    const monthlyExport = (m.inverterExportKWh || [])[inverterIndex] || 0;
+    const monthlyDcKW    = (m.inverterDcCapacityKW || [])[inverterIndex] || 0;
+    const monthlyExport  = (m.inverterExportKWh    || [])[inverterIndex] || 0;
     const monthlyTargetOM = (m.inverterTargetOMKWh || [])[inverterIndex] || 0;
-    const irradiation = (m.inverterIrradiation || [])[inverterIndex] || 0;
+    const irradiation    = (m.inverterIrradiation  || [])[inverterIndex] || 0;
 
     totalExport += monthlyExport;
     totalTargetOM += monthlyTargetOM;
+    // Theoretical energy = H_POA × DC capacity × system efficiency
     totalTheoreticalEnergy += irradiation * monthlyDcKW * SYSTEM_EFFICIENCY;
 
     const monthDate = new Date(m.month + '-02');
@@ -204,21 +197,20 @@ export function calculateInverterKPIs(
     const build = inverter.moduleBuildId ? moduleBuildMap.get(inverter.moduleBuildId) : undefined;
 
     if (build && inverter.moduleCount && irradiation > 0) {
-      const firstYearDegradationPerMonth = build.degradation.firstYear / 12;
-      const subsequentYearDegradationPerMonth = build.degradation.subsequentYears / 12;
-      let totalDegradationPercent = 0;
+      const firstYearDegPerMonth = build.degradation.firstYear / 12;
+      const subYearDegPerMonth = build.degradation.subsequentYears / 12;
+      let totalDegPercent = 0;
 
       if (monthsDiff >= 0) {
         if (monthsDiff < 12) {
-          totalDegradationPercent = (monthsDiff + 1) * firstYearDegradationPerMonth;
+          totalDegPercent = (monthsDiff + 1) * firstYearDegPerMonth;
         } else {
-          totalDegradationPercent =
-            build.degradation.firstYear + (monthsDiff - 11) * subsequentYearDegradationPerMonth;
+          totalDegPercent = build.degradation.firstYear + (monthsDiff - 11) * subYearDegPerMonth;
         }
       }
 
-      const degradationFactor = 1 - totalDegradationPercent / 100;
-
+      const degradationFactor = 1 - totalDegPercent / 100;
+      // IEC 61724 PR denominator: H_POA × P_DC × (1 − degradation), P_DC = moduleCount × Wp / 1000
       const dcCapacityKW = (inverter.moduleCount * build.wp) / 1000;
       prDenominator += irradiation * dcCapacityKW * degradationFactor;
     }
@@ -240,8 +232,8 @@ export function calculateInverterKPIs(
 
   const yieldVal = latestTotalKWdc > 0 ? totalExport / latestTotalKWdc : 0;
   const averageDailyYield = latestTotalKWdc > 0 && totalDays > 0 ? totalExport / latestTotalKWdc / totalDays : 0;
-  const pr = prDenominator > 0 ? (totalExport / prDenominator) * 100 : 0;
-  const cuf = acCufDenominator > 0 ? (totalExport / acCufDenominator) * 100 : 0;
+  const pr    = prDenominator > 0    ? (totalExport / prDenominator) * 100    : 0;
+  const cuf   = acCufDenominator > 0 ? (totalExport / acCufDenominator) * 100 : 0;
   const dcCuf = dcCufDenominator > 0 ? (totalExport / dcCufDenominator) * 100 : 0;
 
   return {
@@ -283,6 +275,7 @@ export function calculateBreakdownStats(
     if (durationMinutes < 0) return;
 
     const giiLoss = event.giiAtEnd - event.giiAtStart;
+    // Generation loss = GII loss × DC capacity × system efficiency
     const generationLossKwh = giiLoss * inverterDcCapacity * SYSTEM_EFFICIENCY;
 
     stats.totalBreakdownDurationMinutes += durationMinutes;
@@ -301,8 +294,8 @@ export function calculateBreakdownStats(
 
   const totalPeriodMinutes = periodDays * 24 * 60;
   if (totalPeriodMinutes > 0) {
-    stats.availabilityPercent =
-      ((totalPeriodMinutes - stats.totalBreakdownDurationMinutes) / totalPeriodMinutes) * 100;
+    // Availability % = (total period − breakdown minutes) / total period × 100
+    stats.availabilityPercent = ((totalPeriodMinutes - stats.totalBreakdownDurationMinutes) / totalPeriodMinutes) * 100;
   }
 
   return stats;

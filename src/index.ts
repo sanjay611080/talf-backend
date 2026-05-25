@@ -33,21 +33,18 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-// Centralized error handler.
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   console.error('[error]', err);
   const message = err instanceof Error ? err.message : 'Internal server error';
   res.status(500).json({ error: message });
 });
 
-// Load the dataset from Supabase, then start accepting requests.
 async function start() {
   await initStore();
 
   app.listen(PORT, () => {
     console.log(`[server] Talf Solar backend listening on http://localhost:${PORT}`);
 
-    // Fetch the SolisCloud account on startup, unless a recent sync already exists.
     if (SOLIS_AUTO_SYNC && isSolisConfigured()) {
       const lastSync = getDb().solisSyncedAt || 0;
       const ageHours = (Date.now() - lastSync) / (1000 * 60 * 60);
@@ -58,16 +55,11 @@ async function start() {
         console.log(`[solis] Skipping sync — last sync was ${ageHours.toFixed(1)}h ago.`);
       }
 
-      // Schedule a recurring delta sync that only refreshes the current month's
-      // generation. Manual fields (tariffs, targets, irradiation, import) are
-      // never overwritten — see runCronSync.
       const intervalMs = SOLIS_CRON_INTERVAL_MINUTES * 60 * 1000;
       console.log(`[solis] Cron sync scheduled every ${SOLIS_CRON_INTERVAL_MINUTES} min.`);
       setNextSyncAt(Date.now() + intervalMs);
       setInterval(() => {
         if (isSyncRunning()) {
-          // Another sync is in progress — defer; nextSyncAt stays accurate
-          // because we'll re-publish it once this tick wraps up.
           setNextSyncAt(Date.now() + intervalMs);
           return;
         }

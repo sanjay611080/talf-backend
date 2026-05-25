@@ -22,10 +22,6 @@ const router = Router();
 
 router.use(authenticate);
 
-/**
- * Wraps an async handler so upstream SolisCloud failures become clean HTTP
- * errors instead of crashing the process (Express 4 does not catch rejections).
- */
 function wrap(handler: (req: Request, res: Response) => Promise<void>) {
   return (req: Request, res: Response): void => {
     handler(req, res).catch((err: unknown) => {
@@ -36,21 +32,18 @@ function wrap(handler: (req: Request, res: Response) => Promise<void>) {
   };
 }
 
-// GET /api/solis/credentials  — never returns the secret itself.
 router.get('/credentials', requireRole('admin'), (_req, res) => {
   const c = getActiveCredentials();
   res.json({
     configured: isSolisConfigured(),
-    source: getCredentialSource(), // 'environment' | 'database' | 'none'
+    source: getCredentialSource(),
     apiId: c?.apiId || '',
     baseUrl: c?.baseUrl || DEFAULT_SOLIS_BASE_URL,
     hasSecret: !!c?.apiSecret,
   });
 });
 
-// PUT /api/solis/credentials
-// An empty apiSecret reuses the stored one, so the secret never needs to be
-// re-typed just to change the API ID or base URL.
+// PUT /api/solis/credentials — empty apiSecret reuses the stored one.
 router.put(
   '/credentials',
   requireRole('admin'),
@@ -70,7 +63,6 @@ router.put(
   }),
 );
 
-// GET /api/solis/test  — verify the stored credentials work.
 router.get(
   '/test',
   requireRole('admin', 'operations'),
@@ -80,7 +72,6 @@ router.get(
   }),
 );
 
-// GET /api/solis/stations
 router.get(
   '/stations',
   wrap(async (req, res) => {
@@ -90,7 +81,6 @@ router.get(
   }),
 );
 
-// GET /api/solis/stations/:id/inverters
 router.get(
   '/stations/:id/inverters',
   wrap(async (req, res) => {
@@ -98,7 +88,6 @@ router.get(
   }),
 );
 
-// GET /api/solis/inverters/:sn/realtime
 router.get(
   '/inverters/:sn/realtime',
   wrap(async (req, res) => {
@@ -106,7 +95,6 @@ router.get(
   }),
 );
 
-// GET /api/solis/inverters/:sn/day?date=YYYY-MM-DD&timeZone=8
 router.get(
   '/inverters/:sn/day',
   wrap(async (req, res) => {
@@ -120,8 +108,7 @@ router.get(
   }),
 );
 
-// POST /api/solis/projects/:code/sync?month=YYYY-MM
-// Returns a freshly-built MonthlyData record (does NOT persist it).
+// POST /api/solis/projects/:code/sync?month=YYYY-MM — returns MonthlyData without persisting.
 router.post(
   '/projects/:code/sync',
   requireRole('admin', 'operations'),
@@ -140,12 +127,10 @@ router.post(
   }),
 );
 
-// GET /api/solis/sync/status  — progress of the SolisCloud fetch.
 router.get('/sync/status', (_req, res) => {
   res.json(getSyncStatus());
 });
 
-// POST /api/solis/sync  — (re)fetch the whole SolisCloud account in the background.
 router.post('/sync', requireRole('admin', 'operations'), (_req, res) => {
   if (!isSolisConfigured()) {
     res.status(400).json({ error: 'SolisCloud credentials are not configured.' });
@@ -155,13 +140,10 @@ router.post('/sync', requireRole('admin', 'operations'), (_req, res) => {
     res.status(409).json({ error: 'A SolisCloud sync is already running.', status: getSyncStatus() });
     return;
   }
-  void runFullSync(); // fire-and-forget; clients poll /sync/status
+  void runFullSync(); // fire-and-forget
   res.status(202).json({ started: true, status: getSyncStatus() });
 });
 
-// POST /api/solis/sync/incremental
-// Fast refresh: re-fetches only the current year for inverters already in the
-// database, updating recent months without re-walking the full history.
 router.post('/sync/incremental', requireRole('admin', 'operations'), (_req, res) => {
   if (!isSolisConfigured()) {
     res.status(400).json({ error: 'SolisCloud credentials are not configured.' });
@@ -171,7 +153,7 @@ router.post('/sync/incremental', requireRole('admin', 'operations'), (_req, res)
     res.status(409).json({ error: 'A SolisCloud sync is already running.', status: getSyncStatus() });
     return;
   }
-  void runIncrementalSync(); // fire-and-forget; clients poll /sync/status
+  void runIncrementalSync(); // fire-and-forget
   res.status(202).json({ started: true, status: getSyncStatus() });
 });
 

@@ -12,17 +12,7 @@ import {
 import { prisma } from './prisma';
 import { seedDatabase } from './seed';
 
-/**
- * Runs a Prisma call with exponential back-off on transient connection errors.
- *
- * Supabase's pgbouncer pooler routinely drops idle connections (so a long-lived
- * process like the 10-minute cron sync occasionally sees "Can't reach database
- * server"). Prisma transparently reconnects on the *next* call, so a short
- * retry is enough to recover without losing the operation.
- *
- * Only retries network-level errors — query bugs, unique-constraint violations,
- * etc. are surfaced immediately.
- */
+// Exponential back-off for transient Supabase/pgbouncer drops.
 async function withDbRetry<T>(label: string, fn: () => Promise<T>, attempts = 4): Promise<T> {
   let lastErr: unknown;
   for (let i = 0; i < attempts; i++) {
@@ -31,8 +21,7 @@ async function withDbRetry<T>(label: string, fn: () => Promise<T>, attempts = 4)
     } catch (err) {
       lastErr = err;
       if (!isTransientDbError(err)) throw err;
-      // 250ms, 750ms, 2.25s, 6.75s — back off but stay under one cron interval.
-      const backoffMs = 250 * Math.pow(3, i);
+      const backoffMs = 250 * Math.pow(3, i); // 250ms → 750ms → 2.25s → 6.75s
       console.warn(
         `[db] ${label} hit transient error (attempt ${i + 1}/${attempts}): ${
           err instanceof Error ? err.message.split('\n')[0] : String(err)
@@ -47,29 +36,21 @@ async function withDbRetry<T>(label: string, fn: () => Promise<T>, attempts = 4)
 function isTransientDbError(err: unknown): boolean {
   if (!err) return false;
   const message = err instanceof Error ? err.message : String(err);
-  // Prisma surfaces network drops as PrismaClientInitializationError / Rust
-  // panics with these signatures.
   return (
     /can't reach database server/i.test(message) ||
     /connection.*(closed|refused|reset|terminated)/i.test(message) ||
     /timed out/i.test(message) ||
     /Engine is not yet connected/i.test(message) ||
     /ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN/i.test(message) ||
-    // Prisma's transient error codes:
-    (err as { code?: string }).code === 'P1001' || // can't reach database
-    (err as { code?: string }).code === 'P1002' || // timed out
-    (err as { code?: string }).code === 'P1017'    // server closed connection
+    (err as { code?: string }).code === 'P1001' ||
+    (err as { code?: string }).code === 'P1002' ||
+    (err as { code?: string }).code === 'P1017'
   );
 }
 
-/**
- * The backend keeps the whole dataset in an in-memory cache (`database`) for
- * fast synchronous reads. Supabase (via Prisma) is the source of truth: the
- * cache is hydrated from it on startup and written back on every mutation.
- */
+// In-memory cache — hydrated from Supabase on startup, written back on every mutation.
 let database: Database;
 
-/** Loads the dataset from Supabase, seeding it on a first, empty run. */
 export async function initStore(): Promise<void> {
   database = await loadFromDatabase();
 
@@ -146,16 +127,13 @@ async function loadFromDatabase(): Promise<Database> {
   };
 }
 
-/** Synchronous read of the cached dataset. */
 export function getDb(): Database {
   return database;
 }
 
-/** Persists the whole in-memory dataset to Supabase in one transaction. */
 export async function saveDb(): Promise<void> {
   const asJson = (value: unknown): Prisma.InputJsonValue => value as Prisma.InputJsonValue;
 
-  // Bulk-replace the row-set tables (small dataset, simplest correct option).
   const transactionOps: Prisma.PrismaPromise<unknown>[] = [
     prisma.project.deleteMany(),
     prisma.moduleBuild.deleteMany(),
@@ -197,8 +175,7 @@ export async function saveDb(): Promise<void> {
     }),
   ];
 
-  // Single-row tables — upsert (handles "row already exists" robustly, unlike
-  // a delete+create pair which can collide with the unique key under pgbouncer).
+  // Upsert single-row tables to avoid unique-key collisions under pgbouncer.
   if (database.solisCredentials) {
     const { apiId, apiSecret, baseUrl } = database.solisCredentials;
     transactionOps.push(
@@ -228,14 +205,7 @@ export async function saveDb(): Promise<void> {
   await withDbRetry('saveDb', () => prisma.$transaction(transactionOps));
 }
 
-/**
- * Surgical update: persists ONLY one project's `monthlyData` + `lifetimeKWh`
- * (and the global `solisSyncedAt`). Used by the 10-minute cron so a routine
- * current-month refresh doesn't drag every user, module build and project
- * through a single bulk-replace transaction — which is what was failing under
- * pgbouncer. lifetimeKWh is included because the cron also refreshes Solis's
- * authoritative lifetime counter for the ALL-timeline KPI.
- */
+// Surgical update: writes only one project's monthlyData + lifetimeKWh instead of a full bulk-replace.
 export async function saveProjectMonthlyData(
   projectCode: string,
   monthlyData: Record<string, MonthlyData>,

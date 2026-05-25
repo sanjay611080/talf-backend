@@ -9,7 +9,6 @@ export interface User {
   isActive?: boolean;
 }
 
-/** Server-side user record. The password hash never leaves the backend. */
 export interface StoredUser extends User {
   passwordHash: string;
 }
@@ -73,15 +72,8 @@ export interface Project {
   projectOwner: string;
   dateOfCommissioning: string;
   tariff: number;
-  plantId?: string; // SolisCloud station id (kept as a string — it exceeds 32-bit int range)
-  /**
-   * SolisCloud's own lifetime generation roll-up (station.allEnergy, in kWh).
-   * Used as the authoritative figure for ALL-timeline KPIs so the dashboard
-   * matches what SolisCloud shows — historic per-month aggregation can be
-   * short when inverters have been replaced or the plant generated before
-   * being registered on SolisCloud. Updated on every Solis sync.
-   */
-  lifetimeKWh?: number;
+  plantId?: string; // SolisCloud station id (string — exceeds 32-bit int range)
+  lifetimeKWh?: number; // SolisCloud lifetime roll-up; authoritative for ALL-timeline KPI
   inverters: Inverter[];
   monthlyData: Record<string, MonthlyData>;
   breakdownEvents?: BreakdownEvent[];
@@ -128,14 +120,12 @@ export interface BreakdownStats {
 
 export type TimeRange = '6M' | '12M' | 'ALL';
 
-/** SolisCloud API credentials. The secret is stored only on the backend. */
 export interface SolisCredentials {
   apiId: string;
   apiSecret: string;
   baseUrl: string;
 }
 
-/** A SolisCloud power station, normalized for the frontend. */
 export interface SolisStation {
   id: string;
   name: string;
@@ -151,7 +141,6 @@ export interface SolisStation {
   moduleCount: number; // number of PV panels ("components") on the station
 }
 
-/** Progress of a SolisCloud fetch/sync. */
 export interface SolisSyncStatus {
   state: 'idle' | 'running' | 'done' | 'error';
   message: string;
@@ -160,13 +149,10 @@ export interface SolisSyncStatus {
   startedAt?: number;
   finishedAt?: number;
   lastSyncedAt?: number;
-  /** When the next automatic (cron) sync is scheduled to run. */
   nextSyncAt?: number;
-  /** What kind of sync the last/current run is — full history, current year, or just current-month delta. */
   kind?: 'full' | 'incremental' | 'cron';
 }
 
-/** A SolisCloud inverter list entry, normalized for the frontend. */
 export interface SolisInverterSummary {
   id: string;
   sn: string;
@@ -180,7 +166,6 @@ export interface SolisInverterSummary {
   state: number; // 1=online, 2=offline, 3=alarm
 }
 
-/** Real-time inverter detail, normalized to kW / kWh. */
 export interface InverterRealTime {
   sn: string;
   name: string;
@@ -196,13 +181,11 @@ export interface InverterRealTime {
   dataTimestamp: number;
 }
 
-/** One point on an inverter's intraday generation curve. */
 export interface DailyCurvePoint {
   time: string; // HH:MM:SS
   power: number; // kW
 }
 
-/** Shape of the JSON file that backs the whole API. */
 export interface Database {
   users: StoredUser[];
   projects: Project[];

@@ -7,7 +7,6 @@ const router = Router();
 
 router.use(authenticate);
 
-// GET /api/kpis/portfolio?range=12M  — KPI per project across the portfolio.
 router.get('/portfolio', (req, res) => {
   const range = parseTimeRange(req.query.range);
   const { projects, moduleBuilds } = getDb();
@@ -20,7 +19,6 @@ router.get('/portfolio', (req, res) => {
   );
 });
 
-// GET /api/kpis/projects/:code?range=12M
 router.get('/projects/:code', (req, res) => {
   const range = parseTimeRange(req.query.range);
   const { projects, moduleBuilds } = getDb();
@@ -32,7 +30,6 @@ router.get('/projects/:code', (req, res) => {
   res.json(calculateKPIs(project, range, moduleBuilds));
 });
 
-// GET /api/kpis/projects/:code/inverters/:index?range=12M
 router.get('/projects/:code/inverters/:index', (req, res) => {
   const range = parseTimeRange(req.query.range);
   const { projects, moduleBuilds } = getDb();

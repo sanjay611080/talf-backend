@@ -12,9 +12,7 @@ import {
 } from '../types';
 import { solisPost } from './solisClient';
 
-
 export const DEFAULT_SOLIS_BASE_URL = 'https://www.soliscloud.com:13333';
-
 
 export type CredentialSource = 'environment' | 'database' | 'none';
 
@@ -25,12 +23,11 @@ function envCredentials(): SolisCredentials | undefined {
   return undefined;
 }
 
-/** Credentials saved through the UI. */
 export function getStoredCredentials(): SolisCredentials | undefined {
   return getDb().solisCredentials;
 }
 
-/** The credentials actually used for API calls: .env wins over UI-saved. */
+// Environment variables take precedence over UI-saved credentials.
 export function getActiveCredentials(): SolisCredentials | undefined {
   return envCredentials() || getStoredCredentials();
 }
@@ -69,8 +66,7 @@ function requireCredentials(): SolisCredentials {
   return { ...c, baseUrl: c.baseUrl || DEFAULT_SOLIS_BASE_URL };
 }
 
-// --- Unit normalization (Solis returns values alongside a unit string) ---
-
+// Normalizes Solis energy/power values to kWh/kW based on the unit string returned in the response.
 function num(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -79,34 +75,23 @@ function num(v: unknown): number {
 function toKWh(value: unknown, unit?: string): number {
   const v = num(value);
   switch ((unit || 'kWh').toLowerCase()) {
-    case 'wh':
-      return v / 1000;
-    case 'mwh':
-      return v * 1000;
-    case 'gwh':
-      return v * 1_000_000;
-    default:
-      return v; // kWh
+    case 'wh':  return v / 1000;
+    case 'mwh': return v * 1000;
+    case 'gwh': return v * 1_000_000;
+    default:    return v; // kWh
   }
 }
 
 function toKW(value: unknown, unit?: string): number {
   const v = num(value);
   switch ((unit || 'kW').toLowerCase()) {
-    case 'w':
-      return v / 1000;
-    case 'mw':
-      return v * 1000;
-    case 'gw':
-      return v * 1_000_000;
-    default:
-      return v; // kW
+    case 'w':  return v / 1000;
+    case 'mw': return v * 1000;
+    case 'gw': return v * 1_000_000;
+    default:   return v; // kW
   }
 }
 
-// --- Operations ---
-
-/** Verifies credentials by making the cheapest possible authenticated call. */
 export async function testConnection(): Promise<void> {
   await solisPost(requireCredentials(), '/v1/api/userStationList', { pageNo: 1, pageSize: 1 });
 }
@@ -157,8 +142,7 @@ export async function listInverters(stationId: string): Promise<SolisInverterSum
 
 export async function getInverterRealTime(sn: string): Promise<InverterRealTime> {
   const d = await solisPost<any>(requireCredentials(), '/v1/api/inverterDetail', { sn });
-  // DC power: prefer a reported total, but many inverters leave powTotal/dcPac
-  // at 0 and only report per-string DC power (pow1..pow32, in W) — sum those.
+  // Sum per-string DC power (pow1..pow32, in W) when the aggregated total is absent.
   let dcPowerKW = toKW(d.powTotal, d.powTotalStr) || toKW(d.dcPac, d.dcPacStr);
   if (dcPowerKW <= 0) {
     let stringWatts = 0;
@@ -186,7 +170,6 @@ export async function getInverterRealTime(sn: string): Promise<InverterRealTime>
   };
 }
 
-/** Intraday generation curve for one inverter on one day. */
 export async function getInverterDay(sn: string, date: string, timeZone = 8): Promise<DailyCurvePoint[]> {
   const arr = await solisPost<any[]>(requireCredentials(), '/v1/api/inverterDay', {
     sn,
@@ -200,7 +183,6 @@ export async function getInverterDay(sn: string, date: string, timeZone = 8): Pr
   }));
 }
 
-/** Monthly generation for one inverter across a whole year (one API call). */
 export async function getInverterYear(
   sn: string,
   year: number,
@@ -220,7 +202,6 @@ export async function getInverterYear(
     .filter((r) => /^\d{4}-\d{2}$/.test(r.month));
 }
 
-/** Daily energy records for one inverter across one month. */
 export async function getInverterMonth(sn: string, month: string): Promise<number> {
   const arr = await solisPost<any[]>(requireCredentials(), '/v1/api/inverterMonth', {
     sn,
@@ -230,16 +211,11 @@ export async function getInverterMonth(sn: string, month: string): Promise<numbe
   return (arr || []).reduce((sum, day) => sum + toKWh(day.energy, day.energyStr), 0);
 }
 
-/** Resolves the SolisCloud serial number for one of the project's inverters. */
 function resolveInverterSn(inv: Project['inverters'][number]): string {
   return inv.deviceSn || inv.solisSn || inv.psKey || '';
 }
 
-/**
- * Builds a MonthlyData record for a project by pulling each inverter's monthly
- * generation from SolisCloud. Targets / irradiation / import are preserved from
- * any existing entry, since the Solis API does not provide them.
- */
+// Fetches current-month generation per inverter; preserves admin-entered targets/irradiation.
 export async function syncProjectMonth(project: Project, month: string): Promise<MonthlyData> {
   const moduleBuilds: ModuleBuild[] = getDb().moduleBuilds;
   const buildMap = new Map(moduleBuilds.map((b) => [b.id, b]));
@@ -265,12 +241,11 @@ export async function syncProjectMonth(project: Project, month: string): Promise
   for (const inv of project.inverters) {
     const sn = resolveInverterSn(inv);
     let exportKWh = 0;
-    if (sn) {
-      exportKWh = await getInverterMonth(sn, month);
-    }
+    if (sn) exportKWh = await getInverterMonth(sn, month);
     result.inverterExportKWh.push(Math.round(exportKWh));
 
     const build = inv.moduleBuildId ? buildMap.get(inv.moduleBuildId) : undefined;
+    // DC capacity = moduleCount × Wp / 1000
     const dcCapacity = ((inv.moduleCount || 0) * (build?.wp || 0)) / 1000;
     result.inverterDcCapacityKW.push(dcCapacity);
   }

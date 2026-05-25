@@ -8,7 +8,6 @@ import { logAuditEvent } from '../services/auditHelper';
 
 const router = Router();
 
-// POST /api/auth/login
 router.post('/login', (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) {
@@ -70,7 +69,6 @@ router.post('/login', (req, res) => {
   });
 });
 
-// GET /api/auth/me
 router.get('/me', authenticate, (req: AuthRequest, res) => {
   res.json({ user: req.user });
 });

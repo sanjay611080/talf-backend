@@ -6,16 +6,9 @@ import { asyncHandler } from '../utils/asyncHandler';
 
 const router = Router();
 
-// All audit endpoints require a valid session.
 router.use(authenticate);
 
-// ---------------------------------------------------------------------------
-// POST /api/audit
-// Create a new audit log entry. Accepts any authenticated role — events are
-// emitted by the frontend on behalf of the currently logged-in user.
-// The `performedBy` field in the body is honoured when present (useful for
-// system-generated events that carry an explicit actor, e.g. "system").
-// ---------------------------------------------------------------------------
+// POST /api/audit — any authenticated role; performedBy defaults to req.user.username.
 router.post(
   '/',
   asyncHandler(async (req: AuthRequest, res) => {
@@ -53,12 +46,7 @@ router.post(
   }),
 );
 
-// ---------------------------------------------------------------------------
-// GET /api/audit
-// List audit logs. Admin only.
-// Query params: limit (default 500, max 1000), offset (default 0),
-//   performedBy, action, entityType
-// ---------------------------------------------------------------------------
+// GET /api/audit — admin only; query params: limit, offset, performedBy, action, entityType.
 router.get(
   '/',
   requireRole('admin'),
@@ -82,10 +70,7 @@ router.get(
   }),
 );
 
-// ---------------------------------------------------------------------------
-// DELETE /api/audit
-// Permanently delete all audit log entries. Admin only.
-// ---------------------------------------------------------------------------
+// DELETE /api/audit — permanently deletes all audit log entries. Admin only.
 router.delete(
   '/',
   requireRole('admin'),
